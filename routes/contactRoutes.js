@@ -7,6 +7,7 @@ const {
   deleteContact,
   getContactWithId,
 } = require("../controllers/contactController");
+const validateToken = require("../middleware/validateTokenHandler");
 
 
 
@@ -17,6 +18,8 @@ const {
 // router.route("/:id").delete(deleteContact);
 
 //other method when endpont is same then we can write like this basically nesting
+//this validate token is used for all the route
+router.use(validateToken);
 router.route("/").get(getContact).post(createContact);
 router.route("/:id").get(getContactWithId).put(updateContact).delete(deleteContact);
 module.exports = router;
