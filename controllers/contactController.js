@@ -2,9 +2,10 @@ const asyncHandler = require("express-async-handler");
 const Contact = require("../models/contactModal");
 
 // Get all contacts
+//private route
 const getContact = asyncHandler(async (req, res) => {
   try {
-    const contacts = await Contact.find();
+    const contacts = await Contact.find({user_id : req.user.id});
     if (contacts.length > 0) {
       res.status(200).json(contacts);
     } else {
@@ -16,6 +17,7 @@ const getContact = asyncHandler(async (req, res) => {
 });
 
 // Get contact with specific id
+//private route
 const getContactWithId = asyncHandler(async (req, res) => {
   try {
     const contact = await Contact.findById(req.params.id);
@@ -30,6 +32,7 @@ const getContactWithId = asyncHandler(async (req, res) => {
 });
 
 // Create a new contact
+//private route
 const createContact = asyncHandler(async (req, res) => {
   const { name, email, phone } = req.body;
 
@@ -42,8 +45,8 @@ const createContact = asyncHandler(async (req, res) => {
       name,
       email,
       phone,
+      user_id : req.user.id
     });
-
     res.status(201).json(newContact);
   } catch (error) {
     res.status(500).json({ message: "Failed to create contact", error: error.message });
@@ -51,37 +54,58 @@ const createContact = asyncHandler(async (req, res) => {
 });
 
 // Update a contact
+//private route
 const updateContact = asyncHandler(async (req, res) => {
-  try {
-    const updatedContact = await Contact.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-    if (!updatedContact) {
-      res.status(404).json({ message: "Contact not found" });
-    } else {
-      res.status(200).json(updatedContact);
+    try {
+      // Find the contact first to check ownership
+      const existingContact = await Contact.findById(req.params.id);
+  
+      if (!existingContact) {
+        res.status(404).json({ message: "Contact not found" });
+        return;
+      }
+  
+      if (existingContact.user_id.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error("User doesn't have permission to update other user's contact");
+      }
+  
+      // Now update the contact
+      const updatedContact = await Contact.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true }
+      );
+  
+      if (!updatedContact) {
+        res.status(404).json({ message: "Contact not found" });
+      } else {
+        res.status(200).json(updatedContact);
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update contact", error: error.message });
     }
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update contact", error: error.message });
-  }
-});
+  });
+  
 
 // Delete a contact
+//private route
 const deleteContact = asyncHandler(async (req, res) => {
-  try {
-    const deletedContact = await Contact.findByIdAndDelete(req.params.id);
-    if (!deletedContact) {
-      res.status(404).json({ message: "Contact not found" });
-    } else {
-      res.status(200).json(deletedContact);
+    try {
+      const deletedContact = await Contact.findById(req.params.id);
+      if (!deletedContact) {
+        res.status(404).json({ message: "Contact not found" });
+      } else if (deletedContact.user_id.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error("User doesn't have permission to delete other user's contact");
+      } else {
+        await Contact.deleteOne({ _id: req.params.id });
+        res.status(200).json(deletedContact);
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete contact", error: error.message });
     }
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete contact", error: error.message });
-  }
-});
-
+  });
 module.exports = {
   getContact,
   createContact,
